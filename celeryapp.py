@@ -10,4 +10,4 @@ app = Celery('tasks', broker=Celery_Config.BROKER_URL)
 
 @app.task(name='task_queue.celeryapp.test')
 def test():
-    return 'hello'
+    return 'hello celery'
