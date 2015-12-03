@@ -8,6 +8,6 @@ class Celery_Config:
 
 app = Celery('tasks', broker=Celery_Config.BROKER_URL)
 
-@app.task
+@app.task(name='task_queue.celeryapp.test')
 def test():
     return 'hello'
