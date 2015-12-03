@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>認證您的信箱</title>
+{% endblock %}
+
+{% block body %}
+
+<h1>認證您的信箱</h1>
+<br>
+<p>請點擊以下連結完成 Qland 帳戶信箱認證</p>
+
+    <a href="{{url}}">{{url}}</a>
+
+<p>此連結會在自寄出起 24 個小時後過期。</p>
+
+<hr>
+
+<p>請勿回覆本郵件。如需有關您 Qland 帳戶的更多資訊，請造訪以下連結：</p>
+
+<a href="http://qland.qll.co">http://qland.qll.co</a>
+
+<p>'Qland' 是 Q.L.L. 公司的註冊商標。</p>
+
+{% endblock %}
