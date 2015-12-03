@@ -8,7 +8,7 @@ class Celery_Config:
 
 
 app = Celery('tasks')
-app.config_from_object('Celery_Config')
+app.config_from_object(Celery_Config)
 
 @app.task(name='task_queue.celeryapp.test')
 def test():
