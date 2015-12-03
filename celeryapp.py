@@ -9,10 +9,9 @@ class Celery_Config:
 app = Celery('tasks')
 app.config_from_object(Celery_Config)
 
-@app.task(name='task_queue.celeryapp.test')
-def test():
-    return 'hello celery'
 
+
+## IMPORTANT: move to somewhere else
 
 import smtplib
 from jinja2 import Environment, PackageLoader
@@ -21,11 +20,10 @@ from email.mime.text import MIMEText
 from email import utils
 
 class EmailConfig:
-    AWS_SES_SMTP_USER = 'AKIAJWFZWII4KHSTU7EA'
-    AWS_SES_SMTP_PASSWORD = 'AuVos+SE/JtnGiLsoXpUZqGAzr7dyW4WpEnytdm8Sm1x'
-    AWS_SES_SMTP_HOST = 'email-smtp.us-west-2.amazonaws.com'
-    AWS_SES_SMTP_PORTS = [25, 465, 587]
-
+    AWS_SES_SMTP_USER     = os.environ['AWS_SES_SMTP_USER']
+    AWS_SES_SMTP_PASSWORD = os.environ['AWS_SES_SMTP_PASSWORD']
+    AWS_SES_SMTP_HOST     = os.environ['AWS_SES_SMTP_HOST']
+    AWS_SES_SMTP_PORTS    = [25, 465, 587]
 
 def _smtp_sendMail(receiver, subject, context):
 
