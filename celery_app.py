@@ -1,9 +1,15 @@
 from __future__ import absolute_import
 
-from task_queue import  celeryconfig
+import os
 from celery import Celery
 
-app = Celery('tasks', broker=celeryconfig.BROKER_URL)
+
+class Celery_Config:
+
+    BROKER_URL = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
+
+
+app = Celery('tasks', broker=Celery_Config.BROKER_URL)
 
 @app.task
 def test():
