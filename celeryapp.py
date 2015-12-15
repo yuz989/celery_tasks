@@ -102,7 +102,7 @@ def test():
         table = Trec.__table__
         print table
         session.execute(table.update().
-                           where(table.c.id==95).values(memo='test',expire=1))
+                           where(table.c.id==95).values(memo='test',num_tusers=10))
         print 'complete!'
     except Exception as e:
         print e.message
