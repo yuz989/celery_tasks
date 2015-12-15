@@ -53,3 +53,9 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
     context = template.render(**kwargs)
     _smtp_sendMail(receiver, title, context)
 
+
+@app.task(name='task_queue.scheduler.test')
+def test():
+    print 'test'
+
+
