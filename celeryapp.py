@@ -98,7 +98,11 @@ session = DBSession()
 
 @app.task(name='task_queue.scheduler.test')
 def test():
-    table = Trec.__table__
-    session.execute(table.update().
-                       where(table.c.id==96).values(memo='test'))
-    print 'complete'
+    try:
+        table = Trec.__table__
+        print table
+        session.execute(table.update().
+                           where(table.c.id==95).values(memo='test',expire=1))
+        print 'complete!'
+    except Exception as e:
+        print e.message
