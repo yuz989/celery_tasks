@@ -10,6 +10,7 @@ app = Celery('tasks')
 app.config_from_object(Celery_Config)
 
 
+
 ## IMPORTANT: move to somewhere else
 
 import smtplib
@@ -55,6 +56,7 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
 
 from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Text, create_engine
 from sqlalchemy.types import Unicode
+from sqlalchemy import select
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
@@ -68,14 +70,11 @@ class Trec(Base):
     tcode = Column(String(64)) # class id
     start_time = Column(DateTime)
     end_time = Column(DateTime)
-    lib_book_id = Column(Integer, ForeignKey('library_book.id'))
-    owner_id = Column(Integer, ForeignKey('user.id'))
+    lib_book_id = Column(Integer)
+    owner_id = Column(Integer)
     memo = Column(Text)
     num_tusers = Column(Integer)
     auth_key = Column(String(32))
-
-    lib_book = relationship('LibraryBook')
-    owner = relationship('User')
 
 class TUser(Base):
 
@@ -92,7 +91,6 @@ class DatabaseConfig:
     SQLALCHEMY_DATABASE_URI = os.environ['SQLALCHEMY_DATABASE_URI']
 
 engine = create_engine(DatabaseConfig.SQLALCHEMY_DATABASE_URI)
-Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
@@ -101,8 +99,12 @@ def test():
     try:
         table = Trec.__table__
         print table
-        session.execute(table.update().
-                           where(table.c.id==95).values(memo='test',num_tusers=10))
-        print 'complete!'
+
+        s = select([Trec])
+        result = session.execute(s)
+        for row in result:
+            print(row)
+        print 'done'
+
     except Exception as e:
-        print e.message
+        print 'Error: ' + e.message
