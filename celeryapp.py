@@ -1,14 +1,15 @@
 import os
+import redis
 from celery import Celery
 
 class Celery_Config:
-
-    BROKER_URL            = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
-    CELERY_RESULT_BACKEND = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
+    BROKER_URL              = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
+    CELERY_RESULT_BACKEND   = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
+    SQLALCHEMY_DATABASE_URI = os.environ['SQLALCHEMY_DATABASE_URI']
+    REDIS_HOST              = os.environ['REDIS_HOST']
 
 app = Celery('tasks')
 app.config_from_object(Celery_Config)
-
 
 
 ## IMPORTANT: move to somewhere else
@@ -54,30 +55,33 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
     _smtp_sendMail(receiver, title, context)
 
 
-from sqlalchemy import Column, ForeignKey, Integer, String, DateTime, Text, create_engine
-from sqlalchemy.types import Unicode
-from sqlalchemy import select
+# IMPORTANT: remove ORM mapping redundancy
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy import Column, Text, String, Integer, DateTime, ForeignKey, Unicode
 
 Base = declarative_base()
+engine = create_engine(Celery_Config.SQLALCHEMY_DATABASE_URI, echo=True)
+Session = sessionmaker(bind=engine)
+
+dbSession = Session()
+redisClient = redis.StrictRedis(host=Celery_Config.REDIS_HOST, port=6379, db=0)
 
 class Trec(Base):
-
     __tablename__ = 'trec'
 
     id = Column(Integer, primary_key=True)
-    tcode = Column(String(64)) # class id
+    tcode = Column(String(64))
     start_time = Column(DateTime)
     end_time = Column(DateTime)
-    lib_book_id = Column(Integer)
-    owner_id = Column(Integer)
+    lib_book_id = Column(Integer, ForeignKey('library_book.id'))
+    owner_id = Column(Integer, ForeignKey('user.id'))
     memo = Column(Text)
     num_tusers = Column(Integer)
     auth_key = Column(String(32))
 
 class TUser(Base):
-
     __tablename__ = 'tuser'
 
     id = Column(Integer, primary_key=True)
@@ -87,24 +91,12 @@ class TUser(Base):
     trec_id  = Column(Integer, ForeignKey('trec.id'))
     auth_key = Column(String(32))
 
-class DatabaseConfig:
-    SQLALCHEMY_DATABASE_URI = os.environ['SQLALCHEMY_DATABASE_URI']
-
-engine = create_engine(DatabaseConfig.SQLALCHEMY_DATABASE_URI)
-DBSession = sessionmaker(bind=engine)
-session = DBSession()
-
-@app.task(name='task_queue.scheduler.test')
-def test():
+@app.task(name='task_queue.classSession_cleanup')
+def classSession_cleanup():
     try:
-        table = Trec.__table__
-        print table
-
-        s = select([Trec])
-        result = session.execute(s)
-        for row in result:
-            print(row)
-        print 'done'
-
-    except Exception as e:
-        print 'Error: ' + e.message
+        redisClient.delete(*redisClient.keys('rb.*'))
+    except redis.exceptions.ResponseError: # already empty
+        pass
+    dbSession.query(TUser).delete()
+    dbSession.query(Trec).delete()
+    dbSession.commit()
