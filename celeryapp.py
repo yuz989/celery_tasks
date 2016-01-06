@@ -51,7 +51,7 @@ def _smtp_sendMail(receiver, subject, context):
 def send_email(receiver=None, title='', template_file=None, **kwargs):
     env = Environment(loader=PackageLoader(__name__, 'EmailTemplates'))
     template = env.get_template(template_file)
-    context = template.render(**kwargs)
+    context = template.render(title=title, **kwargs)
     _smtp_sendMail(receiver, title, context)
 
 
@@ -94,7 +94,7 @@ class TUser(Base):
 @app.task(name='task_queue.classSession_cleanup')
 def classSession_cleanup():
     try:
-        redisClient.delete(*redisClient.keys('rb.*'))
+        redisClient.delete(*redisClient.keys('rb.T*'))
     except redis.exceptions.ResponseError: # already empty
         pass
     dbSession.query(TUser).delete()

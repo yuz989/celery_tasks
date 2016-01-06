@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>[Qland問題回報]: {{ title }}</title>
+{% endblock %}
+
+{% block body %}
+
+    <h3>內容: </h3>
+    <p>{{ messagebody }}</p>
+
+    <h3>寄件人資訊: </h3>
+    <div>
+        <img src="{{sender.avatar}}" style="width:64px;height:64px;border-radius:100px;">
+        <p>用戶ID: <span>{{ sender.id or '-' }}</span> </p>
+        <p>用戶名: <span>{{ sender.username or '-' }}</span> </p>
+        <p>電子信箱: <span>{{ sender.email or '-' }}</span></p>
+        <p>發送時間: <span>{{ time }}</span> </p>
+    </div>
+
+{% endblock %}
