@@ -1,19 +1,15 @@
-import os
-import redis
-from celery import Celery
+# -.- coding: utf-8 -.-
+#TODO reorganize project structure
 
-class Celery_Config:
-    BROKER_URL              = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
-    CELERY_RESULT_BACKEND   = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
-    SQLALCHEMY_DATABASE_URI = os.environ['SQLALCHEMY_DATABASE_URI']
-    REDIS_HOST              = os.environ['REDIS_HOST']
+import os
+from celery import Celery
+from celeryconfig import CeleryConfig
 
 app = Celery('tasks')
-app.config_from_object(Celery_Config)
+app.config_from_object(CeleryConfig)
 
 
-## IMPORTANT: move to somewhere else
-
+### EMail ###
 import smtplib
 from jinja2 import Environment, PackageLoader
 from email.mime.multipart import MIMEMultipart
@@ -27,7 +23,6 @@ class EmailConfig:
     AWS_SES_SMTP_PORTS    = [25, 465, 587]
 
 def _smtp_sendMail(receiver, subject, context):
-
     smtp_user = EmailConfig.AWS_SES_SMTP_USER
     smtp_pw = EmailConfig.AWS_SES_SMTP_PASSWORD
     smtp_host = EmailConfig.AWS_SES_SMTP_HOST
@@ -46,7 +41,6 @@ def _smtp_sendMail(receiver, subject, context):
     s.login(smtp_user, smtp_pw)
     s.sendmail(sender, receiver, msg.as_string())
 
-
 @app.task(name='task_queue.qmail.send_email')
 def send_email(receiver=None, title='', template_file=None, **kwargs):
     env = Environment(loader=PackageLoader(__name__, 'EmailTemplates'))
@@ -55,41 +49,22 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
     _smtp_sendMail(receiver, title, context)
 
 
-# IMPORTANT: remove ORM mapping redundancy
+
+
+
+### ETL ###
+from elasticsearch import Elasticsearch, helpers
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Text, String, Integer, DateTime, ForeignKey, Unicode
+from orm import *
+from datetime import timedelta
+import redis
 
-Base = declarative_base()
-engine = create_engine(Celery_Config.SQLALCHEMY_DATABASE_URI, echo=True)
+engine = create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI, echo=True)
 Session = sessionmaker(bind=engine)
-
-dbSession = Session()
-redisClient = redis.StrictRedis(host=Celery_Config.REDIS_HOST, port=6379, db=0)
-
-class Trec(Base):
-    __tablename__ = 'trec'
-
-    id = Column(Integer, primary_key=True)
-    tcode = Column(String(64))
-    start_time = Column(DateTime)
-    end_time = Column(DateTime)
-    lib_book_id = Column(Integer, ForeignKey('library_book.id'))
-    owner_id = Column(Integer, ForeignKey('user.id'))
-    memo = Column(Text)
-    num_tusers = Column(Integer)
-    auth_key = Column(String(32))
-
-class TUser(Base):
-    __tablename__ = 'tuser'
-
-    id = Column(Integer, primary_key=True)
-    join_dtime = Column(DateTime)
-    user_nickname = Column(Unicode(64))
-    identity = Column(String(32))
-    trec_id  = Column(Integer, ForeignKey('trec.id'))
-    auth_key = Column(String(32))
+sqlClient = Session()
+redisClient = redis.StrictRedis(host=CeleryConfig.REDIS_HOST, port=6379, db=0)
+elasticSearchClient = Elasticsearch(CeleryConfig.ELASTICSEARCH_HOST)
 
 @app.task(name='task_queue.classSession_cleanup')
 def classSession_cleanup():
@@ -97,6 +72,55 @@ def classSession_cleanup():
         redisClient.delete(*redisClient.keys('rb.T*'))
     except redis.exceptions.ResponseError: # already empty
         pass
-    dbSession.query(TUser).delete()
-    dbSession.query(Trec).delete()
-    dbSession.commit()
+    sqlClient.query(TUser).delete()
+    sqlClient.query(Trec).delete()
+    sqlClient.commit()
+
+
+def _toIndexBody(lib_book):
+    book = lib_book.book
+    index_body = {'_index':'qland',
+                  '_type':'book',
+                  '_id':lib_book.id,
+                  'category': lib_book.category_id,
+                  'status': lib_book.status,
+                  'recommendation': lib_book.recommendation,
+                  'score' : 0 if lib_book.stats == None else round(lib_book.stats[0].score, 1),
+                  'likes' : 0 if lib_book.stats == None else lib_book.stats[0].likes,
+                  'pageview': 0 if lib_book.stats == None else lib_book.stats[0].pageview,
+                  'title': book.title,
+                  'author': '' if not book.author else book.author.username,
+                  'description': '' if not book.description else book.description,
+                  'audience': u'一般大眾' if not book.for_user else book.for_user,
+                  'target':   u'增長見聞' if not book.learning_target else book.learning_target,
+                  'lang':     u'中文' if not book.lang else book.lang,
+                  'duration': '' if not book.duration else book.duration,
+                  'createdtime': book.create_datetime
+                 }
+    return index_body
+
+
+@app.task(name='task_queue.updateSearchIndex')
+def updateSearchIndex(*args, **kwargs):
+    pops = {}
+    for i in range(0,1000):
+        temp = redisClient.spop('search_index')
+        if not temp:
+            break
+        else:
+            pops[temp] = ''
+    lib_book_ids = pops.keys()
+    lib_book_ids = [ int(item) for item in lib_book_ids ]
+    lib_books = sqlClient.query(LibraryBook).filter(LibraryBook.id.in_(lib_book_ids)).all()
+    books = []
+    for lib_book in lib_books:
+        books.append( _toIndexBody(lib_book) )
+    helpers.bulk(elasticSearchClient, books)
+
+
+'''app.conf.CELERYBEAT_SCHEDULE = {
+    'update_search_index': {
+        'task': 'task_queue.updateSearchIndex',
+        'schedule': timedelta(minutes=3)
+    }
+}'''

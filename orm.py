@@ -1,0 +1,84 @@
+# -.- coding: utf-8 -.-
+
+# IMPORTANT!! remove ORM mapping redundancy
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.mysql import FLOAT
+from sqlalchemy import Column, Text, String, Integer, DateTime, ForeignKey, Unicode
+
+
+Base = declarative_base()
+
+class User(Base):
+
+    __tablename__ = 'user'
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(32), unique=True)
+
+class Book(Base):
+
+    __tablename__ = 'book'
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(500))
+    description = Column(String(500))
+    author_id = Column(ForeignKey('user.id'))
+    for_user = Column(Text)
+    learning_target = Column(Text)
+    lang = Column(String(16))
+    duration = Column(String(64))
+    create_datetime = Column(DateTime)
+
+    author = relationship('User')
+
+class LibraryBook(Base):
+
+    __tablename__ = 'library_book'
+
+    id      = Column(Integer, primary_key=True)
+    book_id = Column(Integer, ForeignKey('book.id'))
+    category_id = Column(Integer, ForeignKey('book_category.id'))
+    status  = Column(String(1), default='Y')
+    recommendation = Column(Integer)
+
+    book = relationship('Book')
+    stats = relationship('LibraryBookStatistics')
+
+class LibraryBookStatistics(Base):
+
+    __tablename__ = 'library_book_statistics'
+
+    id = Column(Integer, primary_key=True)
+    lib_book_id = Column(Integer, ForeignKey('library_book.id'))
+    pageview = Column(Integer)
+
+    likes      = Column(Integer)
+    score      = Column(FLOAT)
+    num_scores = Column(Integer)
+    sum_scores = Column(Integer)
+
+class Trec(Base):
+
+    __tablename__ = 'trec'
+
+    id = Column(Integer, primary_key=True)
+    tcode = Column(String(64))
+    start_time = Column(DateTime)
+    end_time = Column(DateTime)
+    lib_book_id = Column(Integer, ForeignKey('library_book.id'))
+    owner_id = Column(Integer, ForeignKey('user.id'))
+    memo = Column(Text)
+    num_tusers = Column(Integer)
+    auth_key = Column(String(32))
+
+class TUser(Base):
+
+    __tablename__ = 'tuser'
+
+    id = Column(Integer, primary_key=True)
+    join_dtime = Column(DateTime)
+    user_nickname = Column(Unicode(64))
+    identity = Column(String(32))
+    trec_id  = Column(Integer, ForeignKey('trec.id'))
+    auth_key = Column(String(32))
