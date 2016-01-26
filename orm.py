@@ -3,7 +3,7 @@
 # IMPORTANT!! remove ORM mapping redundancy
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.dialects.mysql import FLOAT
+from sqlalchemy.dialects.mysql import FLOAT, BIGINT
 from sqlalchemy import Column, Text, String, Integer, DateTime, ForeignKey, Unicode
 
 
@@ -38,8 +38,13 @@ class LibraryBook(Base):
 
     id      = Column(Integer, primary_key=True)
     book_id = Column(Integer, ForeignKey('book.id'))
-    category_id = Column(Integer, ForeignKey('book_category.id'))
-    status  = Column(String(1), default='Y')
+    org_id = Column(Integer)
+    category_id = Column(Integer)
+    status = Column(String(1))
+    borrow_limit = Column(Integer)
+    borrow_duration = Column(Integer)
+    uri_id = Column(String(16))
+    update_datetime = Column(DateTime)
     recommendation = Column(Integer)
 
     book = relationship('Book')
@@ -51,12 +56,12 @@ class LibraryBookStatistics(Base):
 
     id = Column(Integer, primary_key=True)
     lib_book_id = Column(Integer, ForeignKey('library_book.id'))
-    pageview = Column(Integer)
 
-    likes      = Column(Integer)
+    pageview   = Column(BIGINT(display_width=32,unsigned=True))
+    likes      = Column(BIGINT(display_width=32,unsigned=True))
     score      = Column(FLOAT)
-    num_scores = Column(Integer)
-    sum_scores = Column(Integer)
+    num_scores = Column(BIGINT(display_width=32,unsigned=True))
+    sum_scores = Column(BIGINT(display_width=32,unsigned=True))
 
 class Trec(Base):
 
