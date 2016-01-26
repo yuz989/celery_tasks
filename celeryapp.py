@@ -218,7 +218,7 @@ def updateSearchIndex(*args, **kwargs):
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview' : {
         'task': 'task_queue.updateLibBookPageView',
-        'schedule': timedelta(minutes=10)
+        'schedule': timedelta(minutes=5)
     },
     'update_search_index': {
         'task': 'task_queue.updateSearchIndex',
