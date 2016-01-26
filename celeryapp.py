@@ -149,7 +149,6 @@ def updateLibBookPageView():
     profile_id = get_first_profile_id(service)
 
     lib_book_ids = redisClient.spop_bulk('lib_analytics', 500)
-    redisClient.sadd_bulk('search_index', lib_book_ids)
     lib_books = sqlClient.query(LibraryBook).filter(LibraryBook.id.in_(lib_book_ids)).all()
 
     for lib_book in lib_books:
@@ -176,6 +175,7 @@ def updateLibBookPageView():
 
     sqlClient.commit()
     sqlClient.close()
+    redisClient.sadd_bulk('search_index', lib_book_ids)
 
 def _toIndexBody(lib_book):
     book = lib_book.book
