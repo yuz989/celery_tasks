@@ -153,7 +153,7 @@ def updateLibBookPageView():
 
     for lib_book in lib_books:
 
-        pagePath = 'https://qland.qll.co/portfolio/book/%s' % ( lib_book.uri_id )
+        pagePath = '/portfolio/book/%s' % ( lib_book.uri_id )
         try:
             results =  service.data().ga().get(
                 ids='ga:' + profile_id,

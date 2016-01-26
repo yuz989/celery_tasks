@@ -3,7 +3,7 @@ from redis import StrictRedis
 class RedisClient(StrictRedis):
 
     def sadd_bulk(self, key, list):
-        pipe = self.pipe()
+        pipe = self.pipeline()
         for item in list:
             self.sadd(key, item)
         pipe.execute()
