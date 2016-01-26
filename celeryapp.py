@@ -202,7 +202,7 @@ def _toIndexBody(lib_book):
 @app.task(name='task_queue.updateSearchIndex')
 def updateSearchIndex(*args, **kwargs):
 
-    lib_book_ids = redisClient.spop_count('search_index', 1000)
+    lib_book_ids = redisClient.spop_bulk('search_index', 1000)
 
     if len(lib_book_ids) == 0:
         return
