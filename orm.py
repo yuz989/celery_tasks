@@ -58,6 +58,8 @@ class LibraryBookStatistics(Base):
     lib_book_id = Column(Integer, ForeignKey('library_book.id'))
 
     pageview   = Column(BIGINT(display_width=32,unsigned=True))
+    app_pageview = Column(BIGINT(display_width=32,unsigned=True))
+
     likes      = Column(BIGINT(display_width=32,unsigned=True))
     score      = Column(FLOAT)
     num_scores = Column(BIGINT(display_width=32,unsigned=True))

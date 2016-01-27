@@ -2,6 +2,15 @@ from redis import StrictRedis
 
 class RedisClient(StrictRedis):
 
+    def zrem_bulk(self, key, right, left=0, withscores=True):
+        pipe = self.pipeline() # transaction = True
+
+        pairs = self.zrange(key, left , right, withscores=withscores)
+        self.zremrangebyrank(key, left , right)
+        pipe.execute()
+
+        return pairs
+
     def sadd_bulk(self, key, list):
         pipe = self.pipeline()
         for item in list:

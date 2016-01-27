@@ -137,8 +137,22 @@ def get_first_profile_id(service):
 
 @app.task(name='task_queue.updateLibBookPageView')
 def updateLibBookPageView():
+    batch_size = 500
 
+    # aggregate lib_app_pageview
+    if redisClient.zcard('lib_app_analytics') != 0:
+        pairs = redisClient.zrem_bulk('lib_app_analytics', batch_size) #IMPORTANT: Does not provide reliability
+        lib_book_ids = {int(item[0]) : int(item[1]) for item in pairs}
+        lib_book_stats = sqlClient.query(LibraryBookStatistics).filter(LibraryBookStatistics.lib_book_id.in_(lib_book_ids.keys())).all()
+        for lib_book_stat in lib_book_stats:
+            lib_book_stat.app_pageview += lib_book_ids.get(lib_book_stat.lib_book_id, 0)
+
+        sqlClient.commit()
+
+
+    # aggregate lib_page_view
     if redisClient.scard('lib_analytics') == 0:
+        sqlClient.close()
         return
 
     scope = ['https://www.googleapis.com/auth/analytics.readonly']
@@ -148,7 +162,7 @@ def updateLibBookPageView():
               service_account_email)
     profile_id = get_first_profile_id(service)
 
-    lib_book_ids = redisClient.spop_bulk('lib_analytics', 500)
+    lib_book_ids = redisClient.spop_bulk('lib_analytics', batch_size)
     lib_books = sqlClient.query(LibraryBook).filter(LibraryBook.id.in_(lib_book_ids)).all()
 
     for lib_book in lib_books:
@@ -187,7 +201,7 @@ def _toIndexBody(lib_book):
                   'recommendation': lib_book.recommendation,
                   'score' : 0 if lib_book.stats == None else round(lib_book.stats[0].score, 1),
                   'likes' : 0 if lib_book.stats == None else lib_book.stats[0].likes,
-                  'pageview': 0 if lib_book.stats == None else lib_book.stats[0].pageview,
+                  'pageview': 0 if lib_book.stats == None else lib_book.stats[0].pageview + lib_book.stats[0].app_pageview,
                   'title': book.title,
                   'author': '' if not book.author else book.author.username,
                   'description': '' if not book.description else book.description,
