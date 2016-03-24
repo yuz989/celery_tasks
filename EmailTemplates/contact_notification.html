@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>{{ title }}</title>
+{% endblock %}
+
+{% block body %}
+
+    <p>姓名: {{name}}</p>
+
+    <p>電話: {{phone}}</p>
+
+    <p>信箱: {{email}}</p>
+
+    <p>聯絡時間:
+        {% for item in contact_time %}
+            {{item}}
+        {% endfor %}
+    </p>
+
+    <p>備註: {{comment}}</p>
+
+    <p>發送時間:{{(sent_time|string).replace("-","/")[:19]}}</p>
+
+    {% if user %}
+    <hr>
+
+    <h3>帳號資訊</h3>
+    <img src="{{user.avatar}}" style="width:64px;height:64px;border-radius:100px;">
+    <p>用戶ID: {{user.id}}</p>
+    <p>註冊時間: {{(user.created_time|string).replace("-","/")[:19] or '-'}}</p>
+    <p>作品數: {{user.num_books or 0}}</p>
+    <p>登入次數: {{user.num_login}}</p>
+    {% endif %}
+
+{% endblock %}
