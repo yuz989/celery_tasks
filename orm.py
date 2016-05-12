@@ -1,4 +1,4 @@
-# -.- coding: utf-8 -.-
+# -*- coding: utf-8 -*-
 
 # IMPORTANT!! remove ORM mapping redundancy
 from sqlalchemy.orm import relationship
