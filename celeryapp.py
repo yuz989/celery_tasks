@@ -10,6 +10,7 @@ app.config_from_object(CeleryConfig)
 
 
 ### EMail ###
+import urllib2, urllib
 import smtplib
 from jinja2 import Environment, PackageLoader
 from email.mime.multipart import MIMEMultipart
@@ -49,7 +50,25 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
     _smtp_sendMail(receiver, title, context)
 
 
+### QLecture ###
+@app.task(name='task_queue.run_ppt2ql')
+def run_ppt2ql(job_id, file_name, url):
+    #fix this
+    api_url = "http://172.30.1.192/Converter.jsp"
 
+    data = urllib.urlencode({'id': job_id, 'file name': file_name, 'url':url})
+
+    req = urllib2.Request(api_url, data)
+    try:
+        response = urllib2.urlopen(req)
+
+        if response.code != 200:
+            raise Exception(response.msg)
+
+        redisClient.hset( ('ppt2ql.%s' % job_id), 'progress', '2')
+
+    except Exception as e:
+        redisClient.hset('ppt2ql.errors', job_id, e.message)
 
 
 ### ETL ###
@@ -93,47 +112,47 @@ def classSession_cleanup():
 def get_service(api_name, api_version, scope, key_file_location,
                 service_account_email):
 
-  full_path = os.path.dirname( os.path.realpath(__file__) )
-  path_to_client_secret = full_path + key_file_location
-  f = open(path_to_client_secret, 'rb')
-  key = f.read()
-  f.close()
+    full_path = os.path.dirname( os.path.realpath(__file__) )
+    path_to_client_secret = full_path + key_file_location
+    f = open(path_to_client_secret, 'rb')
+    key = f.read()
+    f.close()
 
-  credentials = SignedJwtAssertionCredentials(service_account_email, key,
-    scope=scope)
+    credentials = SignedJwtAssertionCredentials(service_account_email, key,
+                                                scope=scope)
 
-  http = credentials.authorize(httplib2.Http())
+    http = credentials.authorize(httplib2.Http())
 
-  service = build(api_name, api_version, http=http)
+    service = build(api_name, api_version, http=http)
 
-  return service
+    return service
 
 def get_first_profile_id(service):
 
-  accounts = service.management().accounts().list().execute()
+    accounts = service.management().accounts().list().execute()
 
-  if accounts.get('items'):
-    # Get the first Google Analytics account.
-    account = accounts.get('items')[0].get('id')
+    if accounts.get('items'):
+        # Get the first Google Analytics account.
+        account = accounts.get('items')[0].get('id')
 
-    # Get a list of all the properties for the first account.
-    properties = service.management().webproperties().list(
-        accountId=account).execute()
+        # Get a list of all the properties for the first account.
+        properties = service.management().webproperties().list(
+            accountId=account).execute()
 
-    if properties.get('items'):
-      # Get the first property id.
-      property = properties.get('items')[0].get('id')
+        if properties.get('items'):
+            # Get the first property id.
+            property = properties.get('items')[0].get('id')
 
-      # Get a list of all views (profiles) for the first property.
-      profiles = service.management().profiles().list(
-          accountId=account,
-          webPropertyId=property).execute()
+            # Get a list of all views (profiles) for the first property.
+            profiles = service.management().profiles().list(
+                accountId=account,
+                webPropertyId=property).execute()
 
-      if profiles.get('items'):
-        # return the first view (profile) id.
-        return profiles.get('items')[0].get('id')
+            if profiles.get('items'):
+                # return the first view (profile) id.
+                return profiles.get('items')[0].get('id')
 
-  return None
+    return None
 
 @app.task(name='task_queue.updateLibBookPageView')
 def updateLibBookPageView():
@@ -216,6 +235,7 @@ def _toIndexBody(lib_book):
 @app.task(name='task_queue.updateSearchIndex')
 def updateSearchIndex(*args, **kwargs):
 
+    # Fix this!
     return
     
     lib_book_ids = redisClient.spop_bulk('search_index', 1000)
@@ -230,6 +250,7 @@ def updateSearchIndex(*args, **kwargs):
         books.append( _toIndexBody(lib_book) )
     helpers.bulk(elasticSearchClient, books)
     sqlClient.close()
+
 
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview' : {

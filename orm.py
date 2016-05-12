@@ -75,7 +75,7 @@ class Trec(Base):
     end_time = Column(DateTime)
     lib_book_id = Column(Integer, ForeignKey('library_book.id'))
     owner_id = Column(Integer, ForeignKey('user.id'))
-    memo = Column(Text)
+    title = Column(Text)
     num_tusers = Column(Integer)
     auth_key = Column(String(32))
 
