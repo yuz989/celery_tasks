@@ -1,6 +1,10 @@
-# -.- coding: utf-8 -.-
-#TODO reorganize project structure
+# coding=utf-8
 
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
+
+#TODO reorganize project structure
 import os
 from celery import Celery
 from celeryconfig import CeleryConfig
