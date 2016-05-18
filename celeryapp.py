@@ -59,7 +59,7 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
 @app.task(name='task_queue.run_ppt2ql')
 def run_ppt2ql(job_id, file_name, url):
     #fix this
-    api_url = "http://172.30.1.192/Converter.jsp"
+    api_url = 'http://internal-QLand-ELB-2077625332.ap-southeast-1.elb.amazonaws.com'
 
     data = urllib.urlencode({'id': job_id, 'file name': file_name, 'url':url})
 
