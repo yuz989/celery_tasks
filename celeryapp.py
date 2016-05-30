@@ -59,7 +59,7 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
 @app.task(name='task_queue.run_ppt2ql')
 def run_ppt2ql(job_id, file_name, url):
     
-    api_url = 'http://internal-QLand-ELB-2077625332.ap-southeast-1.elb.amazonaws.com/Converter.jsp'
+    api_url = 'http://172.30.1.195/Converter.jsp'
 
     data = urllib.urlencode({'id': job_id, 'file name': file_name, 'url':url})
 
@@ -239,10 +239,6 @@ def _toIndexBody(lib_book):
 
 @app.task(name='task_queue.updateSearchIndex')
 def updateSearchIndex(*args, **kwargs):
-
-    # Fix this!
-    return
-    
     lib_book_ids = redisClient.spop_bulk('search_index', 1000)
 
     if len(lib_book_ids) == 0:
