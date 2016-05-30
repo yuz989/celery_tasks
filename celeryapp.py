@@ -262,7 +262,7 @@ app.conf.CELERYBEAT_SCHEDULE = {
     },
     'update_search_index': {
         'task': 'task_queue.updateSearchIndex',
-        'schedule': timedelta(minutes=1)
+        'schedule': timedelta(minutes=3)
     }
 }
 
