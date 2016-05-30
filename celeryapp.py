@@ -244,14 +244,16 @@ def updateSearchIndex(*args, **kwargs):
     if len(lib_book_ids) == 0:
         return
 
-    lib_book_ids = [ int(item) for item in lib_book_ids ]
-    lib_books = sqlClient.query(LibraryBook).filter(LibraryBook.id.in_(lib_book_ids)).all()
-    books = []
-    for lib_book in lib_books:
-        books.append( _toIndexBody(lib_book) )
-    helpers.bulk(elasticSearchClient, books)
-    sqlClient.close()
-
+    try:
+        lib_book_ids = [ int(item) for item in lib_book_ids ]
+        lib_books = sqlClient.query(LibraryBook).filter(LibraryBook.id.in_(lib_book_ids)).all()
+        books = []
+        for lib_book in lib_books:
+            books.append( _toIndexBody(lib_book) )
+        helpers.bulk(elasticSearchClient, books)
+        sqlClient.close()
+    except Exception as e:
+        raise Exception(e.message)
 
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview' : {
@@ -260,7 +262,7 @@ app.conf.CELERYBEAT_SCHEDULE = {
     },
     'update_search_index': {
         'task': 'task_queue.updateSearchIndex',
-        'schedule': timedelta(minutes=3)
+        'schedule': timedelta(minutes=1)
     }
 }
 
