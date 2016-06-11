@@ -63,9 +63,10 @@ def run_ppt2ql(job_id, file_name, url):
     api_url = 'http://172.30.1.195/Converter.jsp'
 
     data = urllib.urlencode({'id': job_id, 'file name': file_name, 'url':url})
-
     req = urllib2.Request(api_url, data)
+
     try:
+        redisClient = RedisClient(host=CeleryConfig.REDIS_HOST, port=6379, db=0)
         response = urllib2.urlopen(req)
 
         if response.code != 200:
@@ -76,6 +77,8 @@ def run_ppt2ql(job_id, file_name, url):
     except Exception as e:
         redisClient.hset('ppt2ql.errors', job_id, e.message)
 
+    finally:
+        del redisClient
 
 ### ETL ###
 from datetime import timedelta
@@ -107,13 +110,9 @@ def get_service(api_name, api_version, scope, key_file_location,
     path_to_client_secret = full_path + key_file_location
     with open(path_to_client_secret, 'rb') as f:
         key = f.read()
-        f.close()
-
         credentials = SignedJwtAssertionCredentials(service_account_email, key,
                                                 scope=scope)
-
         http = credentials.authorize(httplib2.Http())
-
         service = build(api_name, api_version, http=http)
 
         return service
