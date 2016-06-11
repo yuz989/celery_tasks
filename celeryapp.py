@@ -6,6 +6,7 @@ reload(sys)
 sys.setdefaultencoding('utf8')
 
 #TODO reorganize project structure
+import json
 import os
 from celery import Celery
 from celeryconfig import CeleryConfig
@@ -79,6 +80,7 @@ def run_ppt2ql(job_id, file_name, url):
 ### ETL ###
 from datetime import timedelta
 import logging
+import csv
 
 from apiclient.discovery import build
 from oauth2client.client import SignedJwtAssertionCredentials
@@ -223,15 +225,12 @@ def _toIndexBody(lib_book):
                   'category': lib_book.category_id,
                   'status': lib_book.status,
                   'recommendation': lib_book.recommendation,
-                  'score' : 0 if lib_book.stats == None else round(lib_book.stats[0].score, 1),
-                  'likes' : 0 if lib_book.stats == None else lib_book.stats[0].likes,
-                  'pageview': 0 if lib_book.stats == None else lib_book.stats[0].pageview + lib_book.stats[0].app_pageview,
                   'title': book.title,
                   'author': '' if not book.author else book.author.username,
                   'description': '' if not book.description else book.description,
-                  'audience': u'一般大眾' if not book.for_user else book.for_user,
-                  'target':   u'增長見聞' if not book.learning_target else book.learning_target,
-                  'lang':     u'中文' if not book.lang else book.lang,
+                  'audience': '' if not book.for_user else book.for_user,
+                  'target':   '' if not book.learning_target else book.learning_target,
+                  'lang':     '' if not book.lang else book.lang,
                   'duration': '' if not book.duration else book.duration,
                   'createdtime': book.create_datetime
                  }
@@ -254,6 +253,98 @@ def updateSearchIndex(*args, **kwargs):
         sqlClient.close()
     except Exception as e:
         raise Exception(e.message)
+
+
+# remove this !
+from boto.s3.connection import S3Connection
+
+def upload_file(fname, data, dst_dir='', type='text'):
+    conn = S3Connection(os.environ['AWS_ACCESS_KEY'], os.environ['AWS_SECRET_KEY'])
+    bucket = conn.get_bucket('qllco')
+    key_name = os.path.join(os.path.join(dst_dir, fname))
+    key = bucket.new_key(key_name)
+
+    if type == 'text':
+        key.set_contents_from_string(data)
+    elif type == 'file':
+        key.set_contents_from_file(data)
+
+    key.set_acl('public-read')
+    url = key.generate_url(expires_in=0, query_auth=False)
+    return url
+
+
+@app.task(name='task_queue.transformQlectureLog')
+def exportQLectureLog(tcode):
+
+    def qlectureRedisKey(tcode):
+        return {
+            'CLASS_INFO'      : 'rb.' + tcode + '.info',
+            'TEST_CONTENT'    : 'test.' + tcode,
+            'USERPROFILE'     : 'rb.' + tcode + '.profile',
+            'ONLINES'         : 'rb.' + tcode + '.online',
+            'STATS'           : 'rb.' + tcode + '.stats',
+            'PREFIX_ROLLBOOK' : 'rb.' + tcode + '.users.',
+            'PREFIX_USER'     : 'rb.' + tcode + '.',
+            'TMP'             : 'rb.' + tcode + '.tmp',
+            'CHANNEL'         : 'rb.' + tcode + '.channel'
+        }
+
+    questionType = {
+        1: 'match',
+        2: 'choose',
+        3: 'true_false',
+        4: 'sentence',
+        5: 'vocabulary',
+        6: 'cloze',
+        7: 'comprehension'
+    }
+
+    trec = sqlClient.query(Trec).filter(Trec.tcode==tcode).first()
+    keys = qlectureRedisKey(tcode)
+
+    classInfo   = redisClient.hgetall(keys['CLASS_INFO'])
+    numUsers    = classInfo.get('num_users')
+
+    if not numUsers:
+        return
+
+    else:
+
+        numUsers         = int(numUsers)
+        numRollBookPages = numUsers /32 + 1
+        fileName         = ( '%d.%s.csv' % (trec.id, trec.tcode) )
+
+        with open(fileName, 'w+') as csvfile:
+            try:
+                test_content = json.loads(redisClient.hgetall(keys['TEST_CONTENT'])['dc'])
+
+                writer = csv.writer(csvfile)
+                writer.writerow(['user_id', 'page', 'type', 'option'])
+
+                for rollBookPage in range(1, numRollBookPages+1):
+
+                    userIDs = redisClient.zrange(keys['PREFIX_ROLLBOOK'] + str(rollBookPage), 0, -1)
+
+                    for userID in userIDs:
+
+                        userAnswers = redisClient.hgetall(keys['PREFIX_USER'] + userID)
+
+                        for pageNumber in userAnswers:
+                            try:
+                                type = questionType[test_content[pageNumber]['type']]
+                                writer.writerow([userID, pageNumber, type, userAnswers[pageNumber] ])
+                            except:
+                                continue
+                csvfile.seek(0)
+                upload_file(fname=fileName, data=csvfile, dst_dir='qlecture_csv', type='file')
+
+                trec.status   = 'S'
+                sqlClient.commit()
+                sqlClient.close()
+
+            finally:
+                os.remove(csvfile.name)
 
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview' : {
