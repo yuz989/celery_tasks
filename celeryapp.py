@@ -98,7 +98,6 @@ from redis import exceptions as redisException
 
 engine = create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
-redisClient = RedisClient(host=CeleryConfig.REDIS_HOST, port=6379, db=0)
 elasticSearchClient = Elasticsearch(CeleryConfig.ELASTICSEARCH_HOST)
 
 def get_service(api_name, api_version, scope, key_file_location,
@@ -106,18 +105,18 @@ def get_service(api_name, api_version, scope, key_file_location,
 
     full_path = os.path.dirname( os.path.realpath(__file__) )
     path_to_client_secret = full_path + key_file_location
-    f = open(path_to_client_secret, 'rb')
-    key = f.read()
-    f.close()
+    with open(path_to_client_secret, 'rb') as f:
+        key = f.read()
+        f.close()
 
-    credentials = SignedJwtAssertionCredentials(service_account_email, key,
+        credentials = SignedJwtAssertionCredentials(service_account_email, key,
                                                 scope=scope)
 
-    http = credentials.authorize(httplib2.Http())
+        http = credentials.authorize(httplib2.Http())
 
-    service = build(api_name, api_version, http=http)
+        service = build(api_name, api_version, http=http)
 
-    return service
+        return service
 
 def get_first_profile_id(service):
 
@@ -149,6 +148,7 @@ def get_first_profile_id(service):
 @app.task(name='task_queue.updateLibBookPageView')
 def updateLibBookPageView():
     sqlClient = Session()
+    redisClient = RedisClient(host=CeleryConfig.REDIS_HOST, port=6379, db=0)
     try:
         batch_size = 500
 
@@ -165,7 +165,6 @@ def updateLibBookPageView():
 
         # aggregate lib_page_view
         if redisClient.scard('lib_analytics') == 0:
-            sqlClient.close()
             return
 
         scope = ['https://www.googleapis.com/auth/analytics.readonly']
@@ -201,10 +200,10 @@ def updateLibBookPageView():
                 logging.error('[lib_book:pageview:%s]error: %s' % (str(lib_book.id), e.message) )
 
         sqlClient.commit()
-        sqlClient.close()
         redisClient.sadd_bulk('search_index', lib_book_ids)
 
     finally:
+        del sqlClient
         sqlClient.close()
 
 def _toIndexBody(lib_book):
@@ -229,6 +228,7 @@ def _toIndexBody(lib_book):
 @app.task(name='task_queue.updateSearchIndex')
 def updateSearchIndex(*args, **kwargs):
     sqlClient = Session()
+    redisClient = RedisClient(host=CeleryConfig.REDIS_HOST, port=6379, db=0)
     try:
         lib_book_ids = redisClient.spop_bulk('search_index', 1000)
 
@@ -247,6 +247,7 @@ def updateSearchIndex(*args, **kwargs):
         raise Exception(e.message)
 
     finally:
+        del redisClient
         sqlClient.close()
 
 # remove this !
@@ -295,6 +296,7 @@ def exportQLectureLog(tcode):
     }
     
     sqlClient = Session()
+    redisClient = RedisClient(host=CeleryConfig.REDIS_HOST, port=6379, db=0)
     try:
         trec = sqlClient.query(Trec).filter(Trec.tcode==tcode).first()
         keys = qlectureRedisKey(tcode)
@@ -341,6 +343,7 @@ def exportQLectureLog(tcode):
                 finally:
                     os.remove(csvfile.name)
     finally:
+        del redisClient
         sqlClient.close()
 
 app.conf.CELERYBEAT_SCHEDULE = {
