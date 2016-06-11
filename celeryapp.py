@@ -105,17 +105,6 @@ sqlClient = Session()
 redisClient = RedisClient(host=CeleryConfig.REDIS_HOST, port=6379, db=0)
 elasticSearchClient = Elasticsearch(CeleryConfig.ELASTICSEARCH_HOST)
 
-@app.task(name='task_queue.classSession_cleanup')
-def classSession_cleanup():
-    try:
-        redisClient.delete(*redisClient.keys('rb.T*'))
-    except redisException.ResponseError: # already empty
-        pass
-    sqlClient.query(TUser).delete()
-    sqlClient.query(Trec).delete()
-    sqlClient.commit()
-    sqlClient.close()
-
 def get_service(api_name, api_version, scope, key_file_location,
                 service_account_email):
 
