@@ -6,6 +6,8 @@ class CeleryConfig:
     BROKER_URL              = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
     CELERY_RESULT_BACKEND   = 'redis://%s:6379/0' % os.environ['REDIS_HOST']
     SQLALCHEMY_DATABASE_URI = os.environ['SQLALCHEMY_DATABASE_URI']
+    REDSHIFT_CONNECTION_STRING = os.environ['REDSHIFT_CONNECTION_STRING']
+
     AWS_ACCESS_KEY          = os.environ['AWS_ACCESS_KEY']
     AWS_SECRET_KEY          = os.environ['AWS_SECRET_KEY']
     AWS_S3_BUCKET           = 'qllco'
