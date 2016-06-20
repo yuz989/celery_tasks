@@ -102,11 +102,12 @@ def classSession_cleanup():
     engine = create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI)
     Session = sessionmaker(bind=engine)
     sqlClient = Session()
-     
+
     try:
         redisClient.delete(*redisClient.keys('rb.T*'))
     except redisException.ResponseError: # already empty
         pass
+
     sqlClient.query(TUser).delete()
     sqlClient.query(Trec).delete()
     sqlClient.commit()
@@ -257,8 +258,8 @@ def updateSearchIndex(*args, **kwargs):
             books.append( _toIndexBody(lib_book) )
         helpers.bulk(elasticSearchClient, books)
         sqlClient.close()
-    except Exception as e:
-        raise Exception(e.message)
+    except:
+        pass
 
 
 # remove this !
