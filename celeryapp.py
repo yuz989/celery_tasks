@@ -99,6 +99,10 @@ elasticSearchClient = Elasticsearch(CeleryConfig.ELASTICSEARCH_HOST)
 
 @app.task(name='task_queue.classSession_cleanup')
 def classSession_cleanup():
+    engine = create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI)
+    Session = sessionmaker(bind=engine)
+    sqlClient = Session()
+     
     try:
         redisClient.delete(*redisClient.keys('rb.T*'))
     except redisException.ResponseError: # already empty
@@ -155,11 +159,11 @@ def get_first_profile_id(service):
 
 @app.task(name='task_queue.updateLibBookPageView')
 def updateLibBookPageView():
-    batch_size = 500
-
     engine = create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI)
     Session = sessionmaker(bind=engine)
     sqlClient = Session()
+
+    batch_size = 500
 
     # aggregate lib_app_pageview
     if redisClient.zcard('lib_app_analytics') != 0:
