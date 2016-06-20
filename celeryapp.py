@@ -257,9 +257,9 @@ def updateSearchIndex(*args, **kwargs):
         for lib_book in lib_books:
             books.append( _toIndexBody(lib_book) )
         helpers.bulk(elasticSearchClient, books)
+
+    finally:
         sqlClient.close()
-    except:
-        pass
 
 
 # remove this !
