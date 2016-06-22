@@ -78,8 +78,8 @@ class Trec(Base):
     title = Column(Text)
     num_tusers = Column(Integer)
     auth_key = Column(String(32))
+    report_location = Column(Text)
     status = Column(String(1), default='A')
-
 
 class TUser(Base):
 

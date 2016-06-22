@@ -356,19 +356,63 @@ def exportQLectureLog(tcode):
             finally:
                 os.remove(csvfile.name)
 
-
 @app.task(name='task_queue.exportQlecturePresence')
 def exportQlecturePresence():
-    engine = sqlalchemy.create_engine(CeleryConfig.REDSHIFT_CONNECTION_STRING)
-    r = engine.execute('SELECT * FROM qlecture_presence')
-
-    names = []
-    for row in r:
-        names.append(row)
+    return
 
 @app.task(name='task_queue.unloadQlectureStatistics')
-def unloadQlectureStatistics():
-    return
+def unloadQlectureStatistics(trec_id):
+    engine = sqlalchemy.create_engine(CeleryConfig.REDSHIFT_CONNECTION_STRING)
+    try:
+        s3_object_path = 's3://qlecture-download/%d/' % trec_id
+
+        query = ('''
+            unload ('
+                SELECT \\'name\\' as name, \\'page\\' as page, \\'seconds\\' as seconds
+                UNION ALL
+                (
+                    SELECT u.name, CAST(c.page as CHAR(4)), CAST(c.seconds as CHAR(8))
+                    FROM qlecture_user u
+                    INNER JOIN
+                    (
+                        SELECT m.trec_id, m.tuser_id, m.page, datediff(secs, t.from_dtime, t.to_dtime) as seconds
+
+                        FROM
+                        (
+                            SELECT trec_id, tuser_id, page, min(from_dtime) as min
+                            FROM qlecture_presence
+                            WHERE trec_id = %d
+                            GROUP BY trec_id, tuser_id, page
+                        ) m
+
+                        JOIN qlecture_presence t
+                        ON m.tuser_id = t.tuser_id AND m.page = t.page AND m.min = t.from_dtime
+                    ) c
+
+                    ON u.tuser_id = c.tuser_id
+                )
+            ')
+
+            to '%s'
+            with credentials as 'aws_access_key_id=%s;aws_secret_access_key=%s' PARALLEL OFF DELIMITER ','
+
+            ''') % (trec_id, s3_object_path, CeleryConfig.AWS_ACCESS_KEY, CeleryConfig.AWS_SECRET_KEY)
+
+        engine.execute(query)
+
+
+        Session = sessionmaker(bind=create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI))
+        sqlClient = Session()
+        trec = sqlClient.query(Trec).filter(Trec.id==trec_id).first()
+
+        trec.status = 'S'
+        trec.report_location = s3_object_path
+
+        sqlClient.commit()
+        sqlClient.close()
+
+    except:
+        pass
 
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview' : {
