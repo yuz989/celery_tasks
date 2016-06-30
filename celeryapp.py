@@ -361,7 +361,7 @@ def exportQlecturePresence():
     return
 
 @app.task(name='task_queue.unloadQlectureStatistics')
-def unloadQlectureStatistics(trec_id):
+def unloadQlectureStatistics(trec_id, num_page):
     engine = sqlalchemy.create_engine(CeleryConfig.REDSHIFT_CONNECTION_STRING)
     try:
         s3_object_path = 's3://qlecture-download/%d/' % trec_id
