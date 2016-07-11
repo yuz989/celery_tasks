@@ -400,9 +400,9 @@ def unloadQlectureStatistics(trec_id, num_page):
               (
 
                 SELECT tuser_id,
-                       min( case when action='login' then dtime end) as login_time,
-                       max( case when action='logout' then dtime end) as logout_time,
-                       count( case when action='logout' then 1 else 0 end ) as num_logouts
+                       min( case when action=\\'login\\' then dtime end) as login_time,
+                       max( case when action=\\'logout\\' then dtime end) as logout_time,
+                       count( case when action=\\'logout\\' then 1 else 0 end ) as num_logouts
 
                 FROM qlecture_login
 
