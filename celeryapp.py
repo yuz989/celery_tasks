@@ -366,40 +366,63 @@ def unloadQlectureStatistics(trec_id, num_page):
     try:
         s3_object_path = 's3://qlecture-download/%d/' % trec_id
 
+        field     = ', '.join( map( lambda i: 'f.p'+str(i), range(1, num_page+1) ) )
+        sub_field = ', '.join( map( lambda j: ('SUM( case when page=%d then secs else 0 end ) as p%d' % (j, j)), range(1, num_page+1) ) )
+
         query = ('''
             unload ('
-                SELECT \\'name\\' as name, \\'page\\' as page, \\'seconds\\' as seconds
-                UNION ALL
+
+              (
+              SELECT t1.*, t2.login_time, t2.logout_time, t2.num_logouts FROM
+              (SELECT u.tuser_id, u.name, %s
+                FROM
                 (
-                    SELECT u.name, CAST(c.page as CHAR(4)), CAST(c.seconds as CHAR(8))
-                    FROM qlecture_user u
-                    INNER JOIN
-                    (
-                        SELECT m.trec_id, m.tuser_id, m.page, datediff(secs, t.from_dtime, t.to_dtime) as seconds
+                  SELECT tuser_id,
 
-                        FROM
-                        (
-                            SELECT trec_id, tuser_id, page, min(from_dtime) as min
-                            FROM qlecture_presence
-                            WHERE trec_id = %d
-                            GROUP BY trec_id, tuser_id, page
-                        ) m
+                  %s
 
-                        JOIN qlecture_presence t
-                        ON m.tuser_id = t.tuser_id AND m.page = t.page AND m.min = t.from_dtime
-                    ) c
+                  FROM
+                  (SELECT tuser_id, page, datediff(secs, from_dtime, to_dtime) as secs
 
-                    ON u.tuser_id = c.tuser_id
-                )
+                    FROM
+                    (SELECT tuser_id, page, min(from_dtime) as from_dtime, min(to_dtime) as to_dtime
+                     FROM qlecture_presence WHERE trec_id = %d
+                     group by tuser_id, page
+                    )
+                  )
+                  group by tuser_id
+                )f
+                INNER JOIN qlecture_user u
+                on u.tuser_id = f.tuser_id
+              )t1
+
+              INNER JOIN
+              (
+
+                SELECT tuser_id,
+                       min( case when action='login' then dtime end) as login_time,
+                       max( case when action='logout' then dtime end) as logout_time,
+                       count( case when action='logout' then 1 else 0 end ) as num_logouts
+
+                FROM qlecture_login
+
+                WHERE trec_id=%d
+
+                group by tuser_id
+
+              )t2
+
+              on t1.tuser_id = t2.tuser_id
+              )
+
             ')
 
             to '%s'
             with credentials as 'aws_access_key_id=%s;aws_secret_access_key=%s' PARALLEL OFF DELIMITER ','
 
-            ''') % (trec_id, s3_object_path, CeleryConfig.AWS_ACCESS_KEY, CeleryConfig.AWS_SECRET_KEY)
+            ''') % (field, sub_field, trec_id, trec_id, s3_object_path, CeleryConfig.AWS_ACCESS_KEY, CeleryConfig.AWS_SECRET_KEY)
 
         engine.execute(query)
-
 
         Session = sessionmaker(bind=create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI))
         sqlClient = Session()
@@ -418,10 +441,6 @@ app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview' : {
         'task': 'task_queue.updateLibBookPageView',
         'schedule': timedelta(minutes=5)
-    },
-    'update_search_index': {
-        'task': 'task_queue.updateSearchIndex',
-        'schedule': timedelta(minutes=3)
     }
 }
 
