@@ -57,13 +57,18 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
 
 ### QLecture ###
 @app.task(name='task_queue.run_ppt2ql')
-def run_ppt2ql(job_id, file_name, url):
-    
+def run_ppt2ql(job_id, uid, file_name, url):
+
+    # FIX this!
     api_url = 'http://172.30.1.195/Converter.jsp'
 
-    data = urllib.urlencode({'id': job_id, 'file name': file_name, 'url':url})
+    encoded = {'id': job_id, 'file name': file_name, 'url':url}
+    #if uid > 0:
+    #    encoded.update({'uid': uid})
 
-    req = urllib2.Request(api_url, data)
+    encoded = urllib.urlencode(encoded)
+
+    req = urllib2.Request(api_url, encoded)
     try:
         response = urllib2.urlopen(req)
 
