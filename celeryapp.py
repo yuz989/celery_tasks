@@ -56,17 +56,14 @@ def send_email(receiver=None, title='', template_file=None, **kwargs):
 
 
 ### QLecture ###
-@app.task(name='task_queue.run_ppt2ql')
-def run_ppt2ql(job_id, uid, file_name, url):
+@app.task(name='task_queue.run_upload2ql')
+def run_upload2ql(**kwargs):
+    #FIX THIS
+    api_url = 'http://172.30.1.195/ConverterDev.jsp'
 
-    # FIX this!
-    api_url = 'http://172.30.1.195/Converter.jsp'
+    assert 'id' in kwargs
 
-    encoded = {'id': job_id, 'file name': file_name, 'url':url}
-    #if uid > 0:
-    #    encoded.update({'uid': uid})
-
-    encoded = urllib.urlencode(encoded)
+    encoded = urllib.urlencode(kwargs)
 
     req = urllib2.Request(api_url, encoded)
     try:
@@ -75,10 +72,10 @@ def run_ppt2ql(job_id, uid, file_name, url):
         if response.code != 200:
             raise Exception(response.msg)
 
-        redisClient.hset( ('ppt2ql.%s' % job_id), 'progress', '2')
+        redisClient.hset( ('converter.%s' % kwargs['id']), 'progress', '2')
 
     except Exception as e:
-        redisClient.hset('ppt2ql.errors', job_id, e.message)
+        redisClient.hset('converter.errors', kwargs['id'], e.message)
 
 
 ### ETL ###
