@@ -1,10 +1,5 @@
-#!/usr/bin python
 # -.- coding: utf-8 -.-
 import sys
-
-reload(sys)
-sys.setdefaultencoding('utf8')
-
 import json
 import os
 import pickle
@@ -434,7 +429,9 @@ def unloadToS3(trec_id, tcode, num_page):
         ''' % (field, sub_field, trec_id, trec_id)
 
         if trec.test_content:
-            ans_pages = pickle.loads(trec.test_content).keys()
+            ans_pages = pickle.loads(trec.test_content)
+            ans_pages = ans_pages.keys()
+
             ans_field = ', '.join(
                 map(lambda p: ("MAX(CASE WHEN page = %s THEN answer ELSE \\'NULL\\' END) AS ans%s " % (p, p)), ans_pages))
 
