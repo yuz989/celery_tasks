@@ -29,6 +29,7 @@ class Book(Base):
     lang = Column(String(16))
     duration = Column(String(64))
     create_datetime = Column(DateTime)
+    detail_content  = Column(Text)
 
     author = relationship('User')
 
@@ -78,8 +79,11 @@ class Trec(Base):
     title = Column(Text)
     num_tusers = Column(Integer)
     auth_key = Column(String(32))
+    test_content = Column(Text)
     report_location = Column(Text)
     status = Column(String(1), default='A')
+
+    lib_book = relationship('LibraryBook')
 
 class TUser(Base):
 
