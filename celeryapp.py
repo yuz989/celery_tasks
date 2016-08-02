@@ -373,14 +373,12 @@ def exportQLectureAnswers(trec_id, tcode):
             _delete_All_keys(keys['WILDCARD'])
 
         except:
-            _delete_All_keys(keys['WILDCARD'])
+            pass #_delete_All_keys(keys['WILDCARD'])
 
     return pages
 
-@app.task(name='task_queue.unloadQlectureStatistics')
-def unloadQlectureStatistics(trec_id, tcode, num_page):
-    pages = exportQLectureAnswers(str(trec_id), tcode)
-
+@app.task(name='task_queue.unloadToS3')
+def unloadToS3(trec_id, tcode, num_page, ans_page):
     engine = sqlalchemy.create_engine(CeleryConfig.REDSHIFT_CONNECTION_STRING)
     try:
 
@@ -432,7 +430,7 @@ def unloadQlectureStatistics(trec_id, tcode, num_page):
             on t1.tuser_id = t2.tuser_id
         ''' % (field, sub_field, trec_id, trec_id)
 
-        if pages:
+        if ans_page:
             ans_field = ', '.join(
                 map(lambda p: ("MAX(CASE WHEN page = %s THEN answer ELSE \\'NULL\\' END) AS ans%s " % (p, p)), pages))
 
@@ -479,6 +477,15 @@ def unloadQlectureStatistics(trec_id, tcode, num_page):
     except:
         pass
 
+@app.task(name='task_queue.unloadQlectureStatistics')
+def unloadQlectureStatistics(trec_id, tcode, num_page):
+    pages = exportQLectureAnswers(str(trec_id), tcode)
+    unloadToS3.apply_async(countdown=60, kwargs={
+        'trec_id': trec_id,
+        'tcode': tcode,
+        'num_page': num_page,
+        'ans_page': pages
+    })
 
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview': {
@@ -486,3 +493,4 @@ app.conf.CELERYBEAT_SCHEDULE = {
         'schedule': timedelta(minutes=5)
     }
 }
+
