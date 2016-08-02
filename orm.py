@@ -4,6 +4,7 @@
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.mysql import FLOAT, BIGINT
+from sqlalchemy.types import Boolean, BLOB
 from sqlalchemy import Column, Text, String, Integer, DateTime, ForeignKey, Unicode
 
 
@@ -79,7 +80,7 @@ class Trec(Base):
     title = Column(Text)
     num_tusers = Column(Integer)
     auth_key = Column(String(32))
-    test_content = Column(Text)
+    test_content = Column(BLOB)
     report_location = Column(Text)
     status = Column(String(1), default='A')
 
