@@ -7,6 +7,7 @@ sys.setdefaultencoding('utf8')
 
 import json
 import os
+import pickle
 import sqlalchemy
 from celery import Celery
 from celeryconfig import CeleryConfig
@@ -336,14 +337,13 @@ def exportQLectureAnswers(trec_id, tcode):
     classInfo = redisClient.hgetall(keys['CLASS_INFO'])
     numUsers = classInfo.get('num_users') or 0
     content = redisClient.hgetall(keys['CONTENT'])
-    pages = None
 
     if numUsers == 0 or not content:
         _delete_All_keys(keys['WILDCARD'])
+        return False
     else:
         try:
             tests = json.loads(content['dc'])
-            pages = tests.keys()
 
             fireHoseClient = _get_aws_client('firehose', region='us-west-2')
 
@@ -371,17 +371,20 @@ def exportQLectureAnswers(trec_id, tcode):
                             })
 
             _delete_All_keys(keys['WILDCARD'])
+            return True
 
         except:
-            pass #_delete_All_keys(keys['WILDCARD'])
-
-    return pages
+            _delete_All_keys(keys['WILDCARD'])
+            return False
 
 @app.task(name='task_queue.unloadToS3')
-def unloadToS3(trec_id, tcode, num_page, ans_page):
+def unloadToS3(trec_id, tcode, num_page):
+    Session = sessionmaker(bind=create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI))
+    sqlClient = Session()
+    trec = sqlClient.query(Trec).filter(Trec.id==trec_id).first()
+
     engine = sqlalchemy.create_engine(CeleryConfig.REDSHIFT_CONNECTION_STRING)
     try:
-
         s3_object_path = 's3://qlecture-download/%d/' % trec_id
 
         field = ', '.join(map(lambda i: 'f.p' + str(i), range(1, num_page + 1)))
@@ -430,9 +433,10 @@ def unloadToS3(trec_id, tcode, num_page, ans_page):
             on t1.tuser_id = t2.tuser_id
         ''' % (field, sub_field, trec_id, trec_id)
 
-        if ans_page:
+        if trec.test_content:
+            ans_pages = pickle.loads(trec.test_content).keys()
             ans_field = ', '.join(
-                map(lambda p: ("MAX(CASE WHEN page = %s THEN answer ELSE \\'NULL\\' END) AS ans%s " % (p, p)), pages))
+                map(lambda p: ("MAX(CASE WHEN page = %s THEN answer ELSE \\'NULL\\' END) AS ans%s " % (p, p)), ans_pages))
 
             answer_query = '''
                 SELECT
@@ -449,12 +453,11 @@ def unloadToS3(trec_id, tcode, num_page, ans_page):
             ''' % (ans_field, trec_id)
 
             page_field = ', '.join(map(lambda i: 't.p' + str(i), range(1, num_page + 1)))
-            ans_page_field = ', '.join(map(lambda i: 't3.ans' + str(i), pages))
+            ans_page_field = ', '.join(map(lambda i: 't3.ans' + str(i), ans_pages))
 
             tmp_field = 't.name, %s, t.login_time, t.logout_time, t.num_logouts, %s' % (page_field, ans_page_field)
 
             query = 'SELECT %s FROM (%s)t INNER JOIN (%s)t3 on t.tuser_id = t3.tuser_id' % (tmp_field, query, answer_query)
-
 
         query = ''' unload (' %s ')
             to '%s' with credentials as 'aws_access_key_id=%s;aws_secret_access_key=%s' PARALLEL OFF DELIMITER ','
@@ -465,27 +468,30 @@ def unloadToS3(trec_id, tcode, num_page, ans_page):
         except:
             return
 
-        Session = sessionmaker(bind=create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI))
-        sqlClient = Session()
-        trec = sqlClient.query(Trec).filter(Trec.id == trec_id).first()
-
         trec.status = 'S'
         trec.report_location = s3_object_path
         sqlClient.commit()
         sqlClient.close()
-
     except:
         pass
 
 @app.task(name='task_queue.unloadQlectureStatistics')
 def unloadQlectureStatistics(trec_id, tcode, num_page):
-    pages = exportQLectureAnswers(str(trec_id), tcode)
-    unloadToS3.apply_async(countdown=60, kwargs={
-        'trec_id': trec_id,
-        'tcode': tcode,
-        'num_page': num_page,
-        'ans_page': pages
-    })
+    halfway_to_redshift = exportQLectureAnswers(str(trec_id), tcode)
+
+    if halfway_to_redshift: # wait for s3 buffer flushing
+        unloadToS3.apply_async(countdown=60, kwargs={
+            'trec_id': trec_id,
+            'tcode': tcode,
+            'num_page': num_page
+        })
+    else: # unload immediately
+        unloadToS3(
+            trec_id=trec_id,
+            tcode=tcode,
+            num_page=num_page
+        )
+
 
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview': {
