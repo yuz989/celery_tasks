@@ -454,7 +454,7 @@ def unloadToS3(trec_id, tcode, num_page):
 
             tmp_field = 't.name, %s, t.login_time, t.logout_time, t.num_logouts, %s' % (page_field, ans_page_field)
 
-            query = 'SELECT %s FROM (%s)t INNER JOIN (%s)t3 on t.tuser_id = t3.tuser_id' % (tmp_field, query, answer_query)
+            query = 'SELECT %s FROM (%s)t LEFT JOIN (%s)t3 on t.tuser_id = t3.tuser_id' % (tmp_field, query, answer_query)
 
         query = ''' unload (' %s ')
             to '%s' with credentials as 'aws_access_key_id=%s;aws_secret_access_key=%s' PARALLEL OFF DELIMITER ','
