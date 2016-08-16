@@ -59,13 +59,14 @@ class LibraryBookStatistics(Base):
     id = Column(Integer, primary_key=True)
     lib_book_id = Column(Integer, ForeignKey('library_book.id'))
 
-    pageview   = Column(BIGINT(display_width=32,unsigned=True))
-    app_pageview = Column(BIGINT(display_width=32,unsigned=True))
+    pageview        = Column(BIGINT(display_width=32,unsigned=True))
+    unique_pageview = Column(BIGINT(display_width=32,unsigned=True))
+    app_pageview    = Column(BIGINT(display_width=32,unsigned=True))
 
-    likes      = Column(BIGINT(display_width=32,unsigned=True))
-    score      = Column(FLOAT)
-    num_scores = Column(BIGINT(display_width=32,unsigned=True))
-    sum_scores = Column(BIGINT(display_width=32,unsigned=True))
+    likes           = Column(BIGINT(display_width=32,unsigned=True))
+    score           = Column(FLOAT)
+    num_scores      = Column(BIGINT(display_width=32,unsigned=True))
+    sum_scores      = Column(BIGINT(display_width=32,unsigned=True))
 
 class Trec(Base):
 

@@ -171,7 +171,7 @@ def updateLibBookPageView():
 
     # aggregate lib_app_pageview
     if redisClient.zcard('lib_app_analytics') != 0:
-        pairs = redisClient.zrem_bulk('lib_app_analytics', batch_size)  # IMPORTANT: Does not provide reliability
+        pairs = redisClient.zrem_bulk('lib_app_analytics', batch_size)  # FIX THIS: no reliability
         lib_book_ids = {int(item[0]): int(item[1]) for item in pairs}
         lib_book_stats = sqlClient.query(LibraryBookStatistics).filter(
             LibraryBookStatistics.lib_book_id.in_(lib_book_ids.keys())).all()
@@ -203,16 +203,18 @@ def updateLibBookPageView():
                 ids='ga:' + profile_id,
                 start_date='2015-07-01',
                 end_date='today',
-                metrics='ga:pageviews',
+                metrics='ga:pageviews,ga:uniquePageviews',
                 dimensions='ga:pagePath',
                 filters='ga:pagePath==%s' % pagePath).execute()
 
             if results['totalResults'] != 0:
                 pageview = results.get('rows')[0][1]
+                unique_pageview = results.get('rows')[0][2]
             else:
-                pageview = 0
+                pageview = unique_pageview = 0
 
             lib_book.stats[0].pageview = pageview
+            lib_book.stats[0].unique_pageview = unique_pageview
 
         except Exception as e:
             logging.error('[lib_book:pageview:%s]error: %s' % (str(lib_book.id), e.message))
@@ -221,6 +223,46 @@ def updateLibBookPageView():
     sqlClient.close()
     redisClient.sadd_bulk('search_index', lib_book_ids)
 
+
+@app.task(name='task_queue.updateSingleLibBookPageView')
+def updateSingleLibBookPageView(uri_id):
+    engine = create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI)
+    Session = sessionmaker(bind=engine)
+    sqlClient = Session()
+
+    lib_book = sqlClient.query(LibraryBook).filter(LibraryBook.uri_id==uri_id).first()
+
+    scope = ['https://www.googleapis.com/auth/analytics.readonly']
+    service_account_email = CeleryConfig.GOOGLE_SERVICE_ACCOUNT_EMAIL
+    key_file_location = CeleryConfig.GOOGLE_SERVICE_CREDENTIAL_PATH
+    service = get_service('analytics', 'v3', scope, key_file_location,
+                          service_account_email)
+    profile_id = get_first_profile_id(service)
+
+    pagePath = '/portfolio/book/%s' % (lib_book.uri_id)
+    try:
+        results = service.data().ga().get(
+            ids='ga:' + profile_id,
+            start_date='2015-07-01',
+            end_date='today',
+            metrics='ga:pageviews,ga:uniquePageviews',
+            dimensions='ga:pagePath',
+            filters='ga:pagePath==%s' % pagePath).execute()
+
+        if results['totalResults'] != 0:
+            pageview = results.get('rows')[0][1]
+            unique_pageview = results.get('rows')[0][2]
+        else:
+            pageview = unique_pageview = 0
+
+        lib_book.stats[0].pageview = pageview
+        lib_book.stats[0].unique_pageview = unique_pageview
+
+    except Exception as e:
+        logging.error('[lib_book:pageview:%s]error: %s' % (str(lib_book.id), e.message))
+
+    sqlClient.commit()
+    sqlClient.close()
 
 def _toIndexBody(lib_book):
     book = lib_book.book
