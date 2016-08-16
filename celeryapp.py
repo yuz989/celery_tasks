@@ -223,6 +223,27 @@ def updateLibBookPageView():
     sqlClient.close()
     redisClient.sadd_bulk('search_index', lib_book_ids)
 
+@app.task(name='task_queue.fb_scrape_url')
+def fb_scrape_url(url):
+    param = {
+        'scrape': 'true',
+        'id': url,
+        'accesstoken': CeleryConfig.FB_API_KEY
+    }
+
+    encoded = urllib.urlencode(param)
+
+    req = urllib2.Request('https://graph.facebook.com', encoded)
+
+    try:
+        response = urllib2.urlopen(req)
+        r = response.read()
+
+        if response.code != 200:
+            raise Exception('error: %d, %s' % response.code, response.msg)
+    except Exception as e:
+        print e.message
+
 
 @app.task(name='task_queue.updateSingleLibBookPageView')
 def updateSingleLibBookPageView(uri_id):

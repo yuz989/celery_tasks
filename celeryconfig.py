@@ -12,6 +12,7 @@ class CeleryConfig:
     AWS_SECRET_KEY          = os.environ['AWS_SECRET_KEY']
     AWS_S3_BUCKET           = 'qllco'
 
+    FB_API_KEY              = os.environ.get('FB_API_KEY', '?')
     REDIS_HOST              = os.environ['REDIS_HOST']
     ELASTICSEARCH_HOST      = os.environ['ELASTICSEARCH_HOST']
     GOOGLE_SERVICE_ACCOUNT_EMAIL   = '366013181280-ki7qllkqg27bqtatd5tnrsghmd7g8ass@developer.gserviceaccount.com'
