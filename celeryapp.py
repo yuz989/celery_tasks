@@ -553,10 +553,32 @@ def unloadQlectureStatistics(trec_id, tcode, num_page):
         )
 
 
+@app.task(name='task_queue.appMessengerNotification')
+def appMessengerNotification():
+    from aws_service import AWSService
+
+    engine = create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI)
+    Session = sessionmaker(bind=engine)
+    sqlClient = Session()
+
+    messenger_owners =sqlClient.query(AppMessengerAccount).filter(AppMessengerAccount.device_token_id!=None).filter(AppMessengerAccount.is_owner==True).all()
+
+    for messenger_owner in messenger_owners:
+        device_token     = sqlClient.query(DeviceToken).filter(DeviceToken.id==messenger_owner.device_token_id).first()
+        roster_list_item = sqlClient.query(AppMessengerAccountRosterList).filter(AppMessengerAccountRosterList.messenger_id==messenger_owner.id, AppMessengerAccountRosterList.num_unreads>0).first()
+        if roster_list_item:
+            data = u'Shirley: 有新訊息囉,快點去瞧瞧吧~~~'
+            aws_service = AWSService(CeleryConfig.AWS_ACCESS_KEY, CeleryConfig.AWS_SECRET_KEY)
+            aws_service.send_sns(data, 'endpoint', arn=device_token.sns_endpoint)
+
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview': {
         'task': 'task_queue.updateLibBookPageView',
         'schedule': timedelta(minutes=5)
+    },
+    'app_messenger_notification': {
+        'task': 'task_queue.appMessengerNotification',
+        'schedule': timedelta(hours=1)
     }
 }
 

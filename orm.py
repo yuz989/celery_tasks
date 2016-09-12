@@ -10,6 +10,63 @@ from sqlalchemy import Column, Text, String, Integer, DateTime, ForeignKey, Unic
 
 Base = declarative_base()
 
+
+class App(Base):
+
+    __tablename__ = 'app'
+
+    id          = Column(Integer, primary_key=True)
+
+class Device(Base):
+
+    __tablename__ = 'device'
+
+    id = Column(Integer, primary_key=True)
+
+class DeviceToken(Base):
+
+    __tablename__ = 'device_token'
+
+    id = Column(Integer, primary_key=True)
+    device_id = Column(Integer, ForeignKey('device.id'))
+    app_id = Column(Integer, ForeignKey('app.id'))
+    token = Column(String(256))
+    sns_endpoint = Column(String(256))
+    dtime = Column(DateTime)
+
+    device = relationship('Device', backref='tokens')
+
+
+class AppMessengerAccount(Base):
+
+    __tablename__ = 'app_messager_account'
+
+    id              = Column(Integer, primary_key=True)
+    app_id          = Column(Integer, ForeignKey('app.id'))
+    source          = Column(String(256))
+    source_type     = Column(String(1))
+    alias           = Column(String(32), default='')
+    device_token_id = Column(Integer)
+    is_owner        = Column(Boolean)
+    app             = relationship('App')
+
+
+class AppMessengerAccountRosterList(Base):
+
+    __tablename__ = 'app_messenger_account_roster_list'
+
+    id            = Column(Integer, primary_key=True)
+    messenger_id  = Column(Integer)
+
+    roster_id     = Column(Integer, ForeignKey('app_messager_account.id'))
+    timestamp     = Column(Integer)
+    last_message  = Column(Text)
+    direction     = Column(String(1))
+    num_unreads   = Column(Integer, default=0)
+
+    roster_messenger_account = relationship('AppMessengerAccount')
+
+
 class User(Base):
 
     __tablename__ = 'user'
