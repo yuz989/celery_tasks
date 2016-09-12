@@ -1,7 +1,9 @@
 # -.- coding: utf-8 -.-
 import sys
-import json
 import os
+sys.path.append(os.getcwd())
+
+import json
 import pickle
 import sqlalchemy
 from celery import Celery
@@ -567,7 +569,7 @@ def appMessengerNotification():
         device_token     = sqlClient.query(DeviceToken).filter(DeviceToken.id==messenger_owner.device_token_id).first()
         roster_list_item = sqlClient.query(AppMessengerAccountRosterList).filter(AppMessengerAccountRosterList.messenger_id==messenger_owner.id, AppMessengerAccountRosterList.num_unreads>0).first()
         if roster_list_item:
-            data = u'Shirley: 有新訊息囉,快點去瞧瞧吧~~~'
+            data = u'Shirley: [%s] 有新訊息囉,快點去瞧瞧吧~~~' % messenger_owner.app.title
             aws_service = AWSService(CeleryConfig.AWS_ACCESS_KEY, CeleryConfig.AWS_SECRET_KEY)
             aws_service.send_sns(data, 'endpoint', arn=device_token.sns_endpoint)
 

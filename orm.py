@@ -16,6 +16,8 @@ class App(Base):
     __tablename__ = 'app'
 
     id          = Column(Integer, primary_key=True)
+    title       = Column(String(128))
+
 
 class Device(Base):
 
