@@ -573,6 +573,10 @@ def appMessengerNotification():
             aws_service = AWSService(CeleryConfig.AWS_ACCESS_KEY, CeleryConfig.AWS_SECRET_KEY)
             aws_service.send_sns(data, 'endpoint', arn=device_token.sns_endpoint)
 
+            #HOTFIX: remove this!
+            data = u'Lulu: [%s] 有新訊息囉,趕快帶 malu 去瞧瞧吧~~~' % messenger_owner.app.title
+            aws_service.send_sns(data, 'endpoint', arn='arn:aws:sns:ap-southeast-1:362048893305:endpoint/APNS/Wenzaoapp1/b99c20f0-876c-34b0-986f-ec22f809d344')
+
 app.conf.CELERYBEAT_SCHEDULE = {
     'update_pageview': {
         'task': 'task_queue.updateLibBookPageView',
