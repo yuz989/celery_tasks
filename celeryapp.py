@@ -108,7 +108,7 @@ def classSession_cleanup():
     sqlClient = Session()
 
     try:
-        redisClient.delete(*redisClient.keys('rb.T*'))
+        redisClient.delete(*redisClient.keys('qll.*'))
     except redisException.ResponseError:  # already empty
         pass
 
@@ -361,18 +361,16 @@ def _get_aws_client(service, region='ap-southeast-1', _access_key=None, _secret_
 
 @app.task(name='task_queue.exportQLectureAnswers')
 def exportQLectureAnswers(trec_id, tcode):
-    def qlectureRedisKey(tcode):
+    def qlectureRedisKey(trec_id, tcode):
+        trec_id = str(trec_id)
+
         return {
-            'WILDCARD': 'rb.' + tcode + '.*',
-            'CLASS_INFO': 'rb.' + tcode + '.info',
-            'CONTENT': 'rb.' + tcode + '.content',
-            'USERPROFILE': 'rb.' + tcode + '.profile',
-            'ONLINES': 'rb.' + tcode + '.online',
-            'STATS': 'rb.' + tcode + '.stats',
-            'PREFIX_ROLLBOOK': 'rb.' + tcode + '.users.',
-            'WILDCARD_USER': 'rb.' + tcode + '.user.*',
-            'TMP': 'rb.' + tcode + '.tmp',
-            'CHANNEL': 'rb.' + tcode + '.channel'
+            'WILDCARD':      'qll.%s.%s.*'            % (trec_id, tcode),
+            'CLASS_INFO':    'qll.%s.%s.info'         % (trec_id, tcode),
+            'STATS':         'qll.%s.%s.stats.all'    % (trec_id, tcode),
+            'WILDCARD_USER': 'qll.%s.%s.stats.user.*' % (trec_id, tcode),
+            'ONLINE':        'qll.%s.%s.online'       % (trec_id, tcode),
+            'CHANNEL':       'qll.%s.%s.channel'      % (trec_id, tcode)
         }
 
     def _delete_All_keys(pattern):
@@ -392,18 +390,16 @@ def exportQLectureAnswers(trec_id, tcode):
         7: 'comprehension'
     }
 
-    keys = qlectureRedisKey(tcode)
+    keys = qlectureRedisKey(trec_id, tcode)
     current_time = str(datetime.utcnow())[0:19]
     classInfo = redisClient.hgetall(keys['CLASS_INFO'])
-    numUsers = classInfo.get('num_users') or 0
-    content = redisClient.hgetall(keys['CONTENT'])
 
-    if numUsers == 0 or not content:
+    if 'test' in classInfo:
         _delete_All_keys(keys['WILDCARD'])
         return False
     else:
         try:
-            tests = json.loads(content['dc'])
+            tests = json.loads(classInfo['test'])
 
             fireHoseClient = _get_aws_client('firehose', region='us-west-2')
 
@@ -438,7 +434,7 @@ def exportQLectureAnswers(trec_id, tcode):
             return False
 
 @app.task(name='task_queue.unloadToS3')
-def unloadToS3(trec_id, tcode, num_page):
+def unloadToS3(trec_id, tcode, num_page, _debug=False):
     Session = sessionmaker(bind=create_engine(CeleryConfig.SQLALCHEMY_DATABASE_URI))
     sqlClient = Session()
     trec = sqlClient.query(Trec).filter(Trec.id==trec_id).first()
@@ -517,13 +513,16 @@ def unloadToS3(trec_id, tcode, num_page):
             page_field = ', '.join(map(lambda i: 't.p' + str(i), range(1, num_page + 1)))
             ans_page_field = ', '.join(map(lambda i: 't3.ans' + str(i), ans_pages))
 
-            tmp_field = 't.name, %s, t.login_time, t.logout_time, t.num_logouts, %s' % (page_field, ans_page_field)
+            tmp_field = 't.tuser_id, t.name, %s, t.login_time, t.logout_time, t.num_logouts, %s' % (page_field, ans_page_field)
 
             query = 'SELECT %s FROM (%s)t LEFT JOIN (%s)t3 on t.tuser_id = t3.tuser_id' % (tmp_field, query, answer_query)
 
         query = ''' unload (' %s ')
             to '%s' with credentials as 'aws_access_key_id=%s;aws_secret_access_key=%s' PARALLEL OFF DELIMITER ','
         ''' % (query, s3_object_path, CeleryConfig.AWS_ACCESS_KEY, CeleryConfig.AWS_SECRET_KEY)
+
+        if _debug:
+            return query
 
         try:
             engine.execute(query)
@@ -538,7 +537,15 @@ def unloadToS3(trec_id, tcode, num_page):
         pass
 
 @app.task(name='task_queue.unloadQlectureStatistics')
-def unloadQlectureStatistics(trec_id, tcode, num_page):
+def unloadQlectureStatistics(trec_id, tcode, num_page, _debug=False):
+    if _debug:
+        return unloadToS3(
+            trec_id=trec_id,
+            tcode=tcode,
+            num_page=num_page,
+            _debug=True
+        )
+
     halfway_to_redshift = exportQLectureAnswers(str(trec_id), tcode)
 
     if halfway_to_redshift: # wait for s3 buffer flushing
@@ -568,13 +575,15 @@ def appMessengerNotification():
     for messenger_owner in messenger_owners:
         device_token     = sqlClient.query(DeviceToken).filter(DeviceToken.id==messenger_owner.device_token_id).first()
         roster_list_item = sqlClient.query(AppMessengerAccountRosterList).filter(AppMessengerAccountRosterList.messenger_id==messenger_owner.id, AppMessengerAccountRosterList.num_unreads>0).first()
+
         if roster_list_item:
-            data = u'Shirley: [%s] 有新訊息囉,快點去瞧瞧吧~~~' % messenger_owner.app.title
+            #HOTFIX: remove this!
+            data = u'[%s] 有未讀訊息' % messenger_owner.app.title
             aws_service = AWSService(CeleryConfig.AWS_ACCESS_KEY, CeleryConfig.AWS_SECRET_KEY)
             aws_service.send_sns(data, 'endpoint', arn=device_token.sns_endpoint)
 
             #HOTFIX: remove this!
-            data = u'Lulu: [%s] 有新訊息囉,趕快帶 malu 去瞧瞧吧~~~' % messenger_owner.app.title
+            data = u'[%s] 有未讀訊息' % messenger_owner.app.title
             aws_service.send_sns(data, 'endpoint', arn='arn:aws:sns:ap-southeast-1:362048893305:endpoint/APNS/Wenzaoapp1/b99c20f0-876c-34b0-986f-ec22f809d344')
 
 app.conf.CELERYBEAT_SCHEDULE = {
